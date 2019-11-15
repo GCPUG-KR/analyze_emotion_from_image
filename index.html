@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+        <title>감정분석 서비스</title>
+        <style>
+            .wrap {
+                padding: 30px 20px;
+            }
+            .btn_wrap{
+                display:inline-block;
+                margin-top: 30px;
+                border: solid 1px rgba(0,0,0,0.1);
+                font-size: 14px;
+                border-radius: 3px;
+            }
+
+            .spinner-border {display:none; position: absolute; background-color:#fff; top:50%; bottom:0; left:0;right:0; margin: 0 auto; z-index: 1;}
+            .spinner-border.active{display:block;}
+            .result_wrap{opacity:0; margin-top: 30px; padding-top: 30px; border-top: solid 1px rgba(0,0,0,0.1); transition: 1s;}
+            .result_wrap.active{opacity:1;}
+        </style>
+    </head>
+    <body>
+    <div class="wrap">
+        <div class="img_upload">
+            <h6>얼굴사진을 업로드해주세요.</h6>
+
+            <div class="btn_wrap">
+                <input class="sample_picture" name="sample_picture" type="file" accept="image/*"/>
+                <button class="submit_btn" type="button" >이미지 업로드</button>
+            </div>
+        </div>
+
+        <div class="result_wrap">
+            <h6>감정 분석 결과</h6>
+        </div>
+
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+    <script type="text/javascript">
+               (function imageUploadSample() {
+                   var imageServerAddress = '';
+
+                   var featureType = {
+                       TYPE_UNSPECIFIED: 'TYPE_UNSPECIFIED',
+                       FACE_DETECTION: 'FACE_DETECTION',
+                       LANDMARK_DETECTION: 'LANDMARK_DETECTION',
+                       LOGO_DETECTION: 'LOGO_DETECTION',
+                       LABEL_DETECTION: 'LABEL_DETECTION',
+                       TEXT_DETECTION: 'TEXT_DETECTION',
+                       DOCUMENT_TEXT_DETECTION: 'DOCUMENT_TEXT_DETECTION',
+                       SAFE_SEARCH_DETECTION: 'SAFE_SEARCH_DETECTION',
+                       IMAGE_PROPERTIES: 'IMAGE_PROPERTIES',
+                       CROP_HINTS: 'CROP_HINTS',
+                       WEB_DETECTION: 'WEB_DETECTION',
+                       PRODUCT_SEARCH: 'PRODUCT_SEARCH',
+                       OBJECT_LOCALIZATION: 'OBJECT_LOCALIZATION'
+                   };
+
+                   var imgContent = document.getElementsByClassName('img_upload')[0];
+                   var button = imgContent.getElementsByClassName('submit_btn')[0],
+                       imgElement = imgContent.getElementsByClassName('sample_picture')[0],
+                       resultWrapper = document.getElementsByClassName('result_wrap')[0],
+                       spinner = document.getElementsByClassName('spinner-border')[0];
+
+                   function onClickHandler(element, cb) {
+                       if (element) element.addEventListener('click', cb);
+                   }
+                   function eventHandler() {
+                       onClickHandler(button, submitImageToServer);
+                   }
+                   function init() {
+                       eventHandler();
+                   }
+
+                   function submitImageToServer() {
+                       var requestFormat = {
+                           requests: [{
+                               features: [{
+                                   type: featureType.FACE_DETECTION,
+                                   maxResults: 10,
+                                   model: 'built/stable'
+                               }]
+                           }]
+                       };
+                       var imgFile = imgElement.files[0];
+                       if (imgFile) {
+                           var reader = new FileReader();
+                           reader.readAsDataURL(imgFile);
+
+                           reader.onload = function(e) {
+                               requestFormat.image = setAnnotateImageRequest(imgElement.baseURI, e.target.result)
+                               sendSourceToServer(imgFile);
+                           };
+
+                       }
+                   }
+                   function getResponse(xhr) {
+                       if (xhr.status === 200) {
+                           try {
+                               showLikelyhood(xhr.response.responses);
+                           } catch(e) {
+                               showError(e);
+                               hideLoading();
+                           }
+                       }
+
+                   }
+
+                   function showLikelyhood(responses) {
+                       var ulElement = document.createElement('ul');
+
+                       for(var i = 0; i < responses.length; i++) {
+                           resultWrapper.appendChild(ulElement);
+
+                           for(var j in responses[i]){
+
+                               if(j.includes('Likelihood')) {
+                                   var liElement = document.createElement('li');
+                                   resultWrapper.getElementsByTagName('ul')[i].appendChild(liElement).innerHTML = responses[i][j];
+                               }
+                           }
+                       }
+
+                       resultWrapper.classList.add('active');
+                   }
+
+                   function setAnnotateImageRequest(imageContent, imageUri) {
+                       return {
+                           image: {
+                               content: imageContent,
+                               source: {
+                                   imageUri: imageUri
+                               }
+                           }
+                       }
+                   }
+
+                   function sendSourceToServer(imageRequestForm) {
+                       var xhr = new XMLHttpRequest();
+                       xhr.open('POST', imageServerAddress);
+                       xhr.setRequestHeader('Content-Type', 'multipart/form-data;');
+
+                       xhr.send(imageRequestForm);
+
+                       showLoading();
+                       xhr.addEventListener('load', function() {
+                           getResponse(xhr);
+                       });
+
+                       xhr.addEventListener('error', function(e) {
+                           hideLoading();
+                           showError(e);
+                       });
+                   }
+
+                   function showLoading(){
+                       spinner.classList.add('active');
+                   }
+                   function hideLoading() {
+                       spinner.classList.remove('active');
+                   }
+
+                   function showError(e) {
+                       alert(e);
+                   }
+
+                   init();
+               })();
+       </script>
+    </body>
+</html>
