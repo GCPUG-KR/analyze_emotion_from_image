@@ -10,7 +10,9 @@
             .spinner-border {display:none; position: absolute; background-color:#fff; top:50%; bottom:0; left:0;right:0; margin: 0 auto; z-index: 1;}
             .spinner-border.active{display:block;}
             .result_wrap{opacity:0; margin-top: 30px; padding-top: 30px; border-top: solid 1px rgba(0,0,0,0.1); transition: 1s;}
-            .result_wrap.active{opacity:1;}
+            .result_wrap.show{opacity:1;}
+            .result_wrap .no_result{display:none;}
+            .result_wrap .no_result.show{display:block;}
         </style>
     </head>
     <body>
@@ -26,6 +28,7 @@
 
         <div class="result_wrap">
             <h6>감정 분석 결과</h6>
+            <p class="no_result">없음.</p>
         </div>
 
         <div class="spinner-border" role="status">
@@ -34,7 +37,14 @@
     </div>
     <script type="text/javascript">
                (function imageUploadSample() {
-                   var imageServerAddress = ''; //todo 여기에 api url 넣어주세요:) 테스트 시 에러가 발생하면 commit담당자에게 문의주세요.
+                   var API_KEY = 'AIzaSyCMlCJ5PpWAgSSqAX3hgXi9Bli7imAoQNc';
+                   var imageServerAddress = 'https://vision.googleapis.com/v1/images:annotate?key=' + API_KEY;
+                   var imgContent = document.getElementsByClassName('img_upload')[0];
+                   var button = imgContent.getElementsByClassName('submit_btn')[0],
+                       imgElement = imgContent.getElementsByClassName('sample_picture')[0],
+                       resultWrapper = document.getElementsByClassName('result_wrap')[0],
+                       noResult = resultWrapper.getElementsByClassName('no_result')[0],
+                       spinner = document.getElementsByClassName('spinner-border')[0];
 
                    var featureType = {
                        TYPE_UNSPECIFIED: 'TYPE_UNSPECIFIED',
@@ -47,25 +57,27 @@
                        SAFE_SEARCH_DETECTION: 'SAFE_SEARCH_DETECTION',
                        IMAGE_PROPERTIES: 'IMAGE_PROPERTIES',
                        CROP_HINTS: 'CROP_HINTS',
-                       WEB_DETECTION: 'WEB_DETECTION',
                        PRODUCT_SEARCH: 'PRODUCT_SEARCH',
                        OBJECT_LOCALIZATION: 'OBJECT_LOCALIZATION'
                    };
-
-                   var imgContent = document.getElementsByClassName('img_upload')[0];
-                   var button = imgContent.getElementsByClassName('submit_btn')[0],
-                       imgElement = imgContent.getElementsByClassName('sample_picture')[0],
-                       resultWrapper = document.getElementsByClassName('result_wrap')[0],
-                       spinner = document.getElementsByClassName('spinner-border')[0];
 
                    function onClickHandler(element, cb) {
                        if (element) element.addEventListener('click', cb);
                    }
                    function eventHandler() {
-                       onClickHandler(button, submitImageToServer);
+                       onClickHandler(button, function() {
+                           submitImageToServer();
+                       });
                    }
                    function init() {
                        eventHandler();
+                   }
+
+
+                   function removePreviousResult() {
+                       for(var i = 0; i < resultWrapper.getElementsByTagName('ul').length; i++) {
+                           resultWrapper.removeChild(resultWrapper.getElementsByTagName('ul')[i]);
+                       }
                    }
 
                    function submitImageToServer() {
@@ -79,72 +91,91 @@
                            }]
                        };
                        var imgFile = imgElement.files[0];
+
                        if (imgFile) {
                            var reader = new FileReader();
                            reader.readAsDataURL(imgFile);
 
                            reader.onload = function(e) {
-                               requestFormat.image = setAnnotateImageRequest(imgElement.baseURI, e.target.result)
-                               sendSourceToServer(imgFile);
+                               requestFormat.requests[0].image = setAnnotateImageRequest(imgElement.baseURI, e.target.result)
+
+                               sendSourceToServer(JSON.stringify(requestFormat));
                            };
                        }
+
+                       hideResult();
                    }
                    function getResponse(xhr) {
                        if (xhr.status === 200) {
                            try {
-                               showLikelyhood(xhr.response.responses);
+                               showLikelyhood(JSON.parse(xhr.response).responses);
                            } catch(e) {
                                showError(e);
-                               hideLoading();
                            }
                        }
                    }
 
                    function showLikelyhood(responses) {
+
                        var ulElement = document.createElement('ul');
-
+                       removePreviousResult();
                        for(var i = 0; i < responses.length; i++) {
-                           resultWrapper.appendChild(ulElement);
 
-                           for(var j in responses[i]){
+                           if (responses[i].faceAnnotations) {
+                               resultWrapper.appendChild(ulElement);
+                               for(var j in responses[i].faceAnnotations[0]){
 
-                               if(j.includes('Likelihood')) {
-                                   var liElement = document.createElement('li');
-                                   resultWrapper.getElementsByTagName('ul')[i].appendChild(liElement).innerHTML = responses[i][j];
+                                   if(j.includes('Likelihood')) {
+                                       var liElement = document.createElement('li');
+                                       resultWrapper.getElementsByTagName('ul')[i].appendChild(liElement).innerHTML = j + " : " + responses[i].faceAnnotations[0][j];
+                                   }
                                }
+                           } else {
+                               showNoResult();
+                               throw '사람이미지를 등록해주세요.';
                            }
                        }
-
-                       resultWrapper.classList.add('active');
+                       showResult();
                    }
 
-                   function setAnnotateImageRequest(imageContent, imageUri) {
+                   function setAnnotateImageRequest(imageUri, imageContent) {
                        return {
-                           image: {
-                               content: imageContent,
-                               source: {
-                                   imageUri: imageUri
-                               }
-                           }
+                           content: imageContent.substr(imageContent.indexOf(',')+1)
                        }
                    }
 
                    function sendSourceToServer(imageRequestForm) {
                        var xhr = new XMLHttpRequest();
+                       xhr.addEventListener('load', function() {
+                           hideLoading();
+                           getResponse(xhr);
+                       });
+
                        xhr.open('POST', imageServerAddress);
-                       xhr.setRequestHeader('Content-Type', 'multipart/form-data;');
+                       xhr.setRequestHeader('Content-Type', 'application/json;');
 
                        xhr.send(imageRequestForm);
 
                        showLoading();
-                       xhr.addEventListener('load', function() {
-                           getResponse(xhr);
-                       });
 
                        xhr.addEventListener('error', function(e) {
                            hideLoading();
                            showError(e);
                        });
+                   }
+
+                   function showResult() {
+                       resultWrapper.classList.add('show');
+                   }
+
+                   function hideResult() {
+                       resultWrapper.classList.remove('show');
+                       noResult.classList.remove('show');
+                   }
+
+                   function showNoResult() {
+                       showResult();
+                       noResult.classList.add('show');
                    }
 
                    function showLoading(){
