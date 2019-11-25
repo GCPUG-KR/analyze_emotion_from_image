@@ -37,7 +37,7 @@
     </div>
     <script type="text/javascript">
                (function imageUploadSample() {
-                   var API_KEY = 'AIzaSyCMlCJ5PpWAgSSqAX3hgXi9Bli7imAoQNc';
+                   var API_KEY = '';
                    var imageServerAddress = 'https://vision.googleapis.com/v1/images:annotate?key=' + API_KEY;
                    var imgContent = document.getElementsByClassName('img_upload')[0];
                    var button = imgContent.getElementsByClassName('submit_btn')[0],
@@ -72,6 +72,10 @@
                    function init() {
                        eventHandler();
                    }
+
+
+                   ssh-keygen -t rsa -C "janeDoe@gmail.con" // 계정
+
 
 
                    function removePreviousResult() {
